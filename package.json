@@ -1,0 +1,35 @@
+{
+  "name": "shopify-order-sync",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "engines": {
+    "node": ">=22"
+  },
+  "workspaces": [
+    "packages/*",
+    "apps/*"
+  ],
+  "scripts": {
+    "db:up": "docker compose up -d postgres",
+    "db:down": "docker compose down",
+    "db:generate": "npm run -w @sync/db generate",
+    "db:migrate": "npm run -w @sync/db migrate",
+    "db:seed": "npm run -w @sync/db seed",
+    "dev:erp": "npm run -w @sync/erp dev",
+    "dev:worker": "npm run -w @sync/worker dev",
+    "test": "vitest run",
+    "typecheck": "tsc -p packages/db && tsc -p apps/erp && tsc -p apps/worker && tsc -p apps/shopify-app && tsc -p .",
+    "demo": "tsx --env-file-if-exists=.env scripts/demo-order.ts",
+    "catalog:import": "tsx --env-file-if-exists=.env scripts/import-catalog.ts",
+    "erp:accounts": "npm run -w @sync/erp seed:accounts"
+  },
+  "devDependencies": {
+    "@types/node": "^24.0.0",
+    "tsx": "^4.20.0",
+    "typescript": "^5.9.0",
+    "vitest": "^5.0.5",
+    "@testcontainers/postgresql": "^11.0.0",
+    "testcontainers": "^11.0.0"
+  }
+}

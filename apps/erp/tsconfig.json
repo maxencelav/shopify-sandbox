@@ -1,0 +1,10 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "jsxImportSource": "hono/jsx",
+    // Restricted "types": otherwise the global JSX from @types/react (hoisted for
+    // the Shopify app) takes precedence over Hono's.
+    "types": ["node"]
+  },
+  "include": ["src/**/*", "test/**/*"]
+}

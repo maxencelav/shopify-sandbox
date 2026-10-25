@@ -1,0 +1,8 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": { "types": ["@react-router/node", "vite/client"] },
+  // vite.config.ts is excluded: Vite compiles it itself, and the two copies of
+  // Vite in the workspace (Vitest's and the app's) have incompatible plugin
+  // types.
+  "include": ["app/**/*", "react-router.config.ts"]
+}

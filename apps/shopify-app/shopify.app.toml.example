@@ -1,0 +1,26 @@
+# Copied to shopify.app.toml by `shopify app config link`.
+# client_id / application_url come from your Partners account.
+name = "erp-order-sync"
+client_id = ""
+application_url = "https://example.trycloudflare.com"
+embedded = true
+
+[access_scopes]
+scopes = "read_orders,write_orders,read_products"
+
+[auth]
+redirect_urls = ["https://example.trycloudflare.com/auth/callback"]
+
+[webhooks]
+api_version = "2026-01"
+
+  [[webhooks.subscriptions]]
+  topics = ["orders/create"]
+  uri = "/webhooks/orders-create"
+
+  [[webhooks.subscriptions]]
+  topics = ["app/uninstalled"]
+  uri = "/webhooks/app-uninstalled"
+
+[build]
+automatically_update_urls_on_dev = true

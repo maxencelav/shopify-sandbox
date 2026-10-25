@@ -1,0 +1,10 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    // Worker tests import the ERP app (Hono JSX) to test the full chain:
+    // same JSX settings as the ERP.
+    "jsxImportSource": "hono/jsx",
+    "types": ["node"]
+  },
+  "include": ["src/**/*", "test/**/*"]
+}
