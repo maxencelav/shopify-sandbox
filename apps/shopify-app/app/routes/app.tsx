@@ -1,5 +1,7 @@
 import { AppProvider } from "@shopify/shopify-app-react-router/react";
 import { NavMenu } from "@shopify/app-bridge-react";
+import { AppProvider as PolarisProvider } from "@shopify/polaris";
+import polarisTranslations from "@shopify/polaris/locales/en.json";
 import polarisStyles from "@shopify/polaris/build/esm/styles.css?url";
 import type { LinksFunction, LoaderFunctionArgs } from "react-router";
 import { Link, Outlet, useLoaderData, useRouteError } from "react-router";
@@ -22,7 +24,11 @@ export default function AppLayout() {
           ERP sync
         </Link>
       </NavMenu>
-      <Outlet />
+      {/* This AppProvider only loads App Bridge and the Polaris web components.
+          The screen uses Polaris React, which needs its own provider. */}
+      <PolarisProvider i18n={polarisTranslations}>
+        <Outlet />
+      </PolarisProvider>
     </AppProvider>
   );
 }
