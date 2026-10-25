@@ -22,6 +22,10 @@ RUN npm install -g tsx@4
 
 COPY --from=deps /app/node_modules ./node_modules
 COPY package.json ./
+# tsx only applies a tsconfig to the files it includes: point it at the
+# service one (JSX runtime, module settings), which extends the base config.
+COPY tsconfig.base.json ./
+ENV TSX_TSCONFIG_PATH=apps/erp/tsconfig.json
 COPY packages/db ./packages/db
 COPY apps/erp ./apps/erp
 
