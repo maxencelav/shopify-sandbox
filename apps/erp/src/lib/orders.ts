@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { and, desc, eq, sql } from "drizzle-orm";
-import type { Database } from "@sync/db";
+import type { Database, Executor } from "@sync/db";
 import { erpOrders, stock, type ErpOrder, type ErpOrderLine } from "@sync/db/schema";
 import { badRequest, notFound, outOfStock, unprocessable } from "./errors.ts";
 import type { CreateOrderInput } from "./validation.ts";
@@ -11,7 +11,7 @@ import type { CreateOrderInput } from "./validation.ts";
  * Two concurrent orders on the last item cannot both succeed: the second one
  * sees 0 and gets a 409.
  */
-export async function createOrder(db: Database, input: CreateOrderInput): Promise<ErpOrder> {
+export async function createOrder(db: Executor, input: CreateOrderInput): Promise<ErpOrder> {
   const merged = mergeLines(input.lines);
   return db.transaction(async (tx) => {
     for (const line of merged) {

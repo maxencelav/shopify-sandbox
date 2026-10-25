@@ -32,14 +32,20 @@ Each layer relies on a database constraint rather than an application-level chec
   `ON CONFLICT DO NOTHING`. A replayed delivery produces no row and no job.
 - **Order tracking.** `orders_summary (shop, shopify_order_id)` is unique and the worker
   upserts it. Two distinct webhooks for the same order share one tracking row.
-- **ERP call.** The worker sends a stable `Idempotency-Key` (the webhook ID). The ERP follows
-  Stripe's contract:
+- **ERP call.** The worker sends an `Idempotency-Key` derived from the order
+  (`order:<shop>:<order id>`), not from the delivery: two webhooks for the same order, or a
+  webhook and the nightly reconciliation, send the same key. The ERP follows Stripe's
+  contract:
   - unknown key: the request is processed, `201`;
   - same key, same body: the stored response is replayed, `200` with
     `Idempotency-Replayed: true`;
   - same key, different body: `422`.
 
-The ERP key covers the case where the ERP stores the order but the connection drops before
+The ERP checks the key, creates the order and stores the response in one transaction that
+holds an advisory lock on the key. Concurrent requests with the same key wait for the first
+one and replay its response, and a crash cannot leave an order without its key.
+
+The key also covers the case where the ERP stores the order but the connection drops before
 the response: the worker retries with the same key and gets the stored response back. Chaos
 mode reproduces this case (`lostResponseRate`).
 

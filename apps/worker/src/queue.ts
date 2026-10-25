@@ -20,6 +20,15 @@ export type ProcessOrderJob = {
 export type ReconcileJob = { shop: string; lookbackHours: number };
 
 /**
+ * The ERP key is derived from the order, not from the delivery: two webhooks
+ * for the same order, or a webhook racing with reconciliation, must send the
+ * same key so the ERP creates the order once.
+ */
+export function orderIdempotencyKey(shop: string, shopifyOrderId: string): string {
+  return `order:${shop}:${shopifyOrderId}`;
+}
+
+/**
  * pg-boss rather than BullMQ: the queue lives in the Postgres we already have,
  * so no Redis to host, and enqueuing can take part in the application
  * transaction. The throughput needed here (a few orders per second) is far

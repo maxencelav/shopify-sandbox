@@ -1,4 +1,4 @@
-import { eq, sql } from "drizzle-orm";
+import { and, desc, eq, sql } from "drizzle-orm";
 import type { PgBoss } from "pg-boss";
 import type { Database } from "@sync/db";
 import { ordersSummary, webhookEvents } from "@sync/db/schema";
@@ -136,7 +136,13 @@ async function buildPayload(
   const [event] = await db
     .select()
     .from(webhookEvents)
-    .where(eq(webhookEvents.shopifyWebhookId, job.idempotencyKey))
+    .where(
+      and(
+        eq(webhookEvents.shop, job.shop),
+        sql`${webhookEvents.payload}->>'id' = ${job.shopifyOrderId}`,
+      ),
+    )
+    .orderBy(desc(webhookEvents.id))
     .limit(1);
 
   // No stored webhook: the order was found by reconciliation, read it from

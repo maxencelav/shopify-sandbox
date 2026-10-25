@@ -64,7 +64,7 @@ docs/                 architecture and design decisions
 ## Tests
 
 ```bash
-npm test              # 48 tests against a real Postgres (Testcontainers, needs Docker)
+npm test              # 50 tests against a real Postgres (Testcontainers, needs Docker)
 npm run typecheck
 ```
 

@@ -29,7 +29,7 @@ describe("ingestOrderWebhook", () => {
 
     expect(result.status).toBe("accepted");
     if (result.status !== "accepted") return;
-    expect(result.job.idempotencyKey).toBe("wh-A");
+    expect(result.job.idempotencyKey).toBe("order:demo.myshopify.com:7001");
     expect(result.job.shopifyOrderGid).toBe("gid://shopify/Order/7001");
 
     expect(await db.select().from(webhookEvents)).toHaveLength(1);
@@ -66,6 +66,18 @@ describe("ingestOrderWebhook", () => {
     expect(second.status).toBe("accepted");
     expect(await db.select().from(webhookEvents)).toHaveLength(2);
     // The unique constraint (shop, shopify_order_id) keeps a single tracking row.
+    expect(await db.select().from(ordersSummary)).toHaveLength(1);
+  });
+
+  it("gives two webhooks for the same order the same ERP key", async () => {
+    // Two subscriptions to orders/create: two deliveries, two webhook IDs.
+    const first = await ingestOrderWebhook(db, input("wh-sub-1"));
+    const second = await ingestOrderWebhook(db, input("wh-sub-2"));
+
+    expect(first.status).toBe("accepted");
+    expect(second.status).toBe("accepted");
+    if (first.status !== "accepted" || second.status !== "accepted") return;
+    expect(second.job.idempotencyKey).toBe(first.job.idempotencyKey);
     expect(await db.select().from(ordersSummary)).toHaveLength(1);
   });
 });

@@ -53,6 +53,21 @@ describe("POST /api/v1/orders — idempotency", () => {
     expect(sku?.quantity).toBe(4);
   });
 
+  it("creates the order once when the same key arrives twice at the same time", async () => {
+    const body = JSON.stringify(orderPayload());
+    const send = () =>
+      app.request("/api/v1/orders", { method: "POST", headers: headers("evt-race"), body });
+
+    const responses = await Promise.all([send(), send(), send()]);
+
+    expect(responses.map((r) => r.status).sort()).toEqual([200, 200, 201]);
+    const ids = await Promise.all(responses.map(async (r) => ((await r.json()) as { id: string }).id));
+    expect(new Set(ids).size).toBe(1);
+    expect(await db.select().from(erpOrders)).toHaveLength(1);
+    const [sku] = await db.select().from(stock).where(eq(stock.sku, "SKU-A"));
+    expect(sku?.quantity).toBe(4);
+  });
+
   it("rejects the same key with a different body (422)", async () => {
     await app.request("/api/v1/orders", {
       method: "POST",

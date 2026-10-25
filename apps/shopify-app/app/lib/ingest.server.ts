@@ -1,6 +1,6 @@
 import type { Database } from "@sync/db";
 import { ordersSummary, webhookEvents } from "@sync/db/schema";
-import type { ProcessOrderJob } from "@sync/worker";
+import { orderIdempotencyKey, type ProcessOrderJob } from "@sync/worker";
 
 export type ShopifyOrderWebhook = {
   id: number | string;
@@ -54,7 +54,7 @@ export async function ingestOrderWebhook(
       shop: input.shop,
       shopifyOrderId,
       shopifyOrderName: input.payload.name ?? null,
-      idempotencyKey: input.webhookId,
+      idempotencyKey: orderIdempotencyKey(input.shop, shopifyOrderId),
       status: "pending",
       totalPrice: input.payload.total_price ?? null,
       currency: input.payload.currency ?? null,
@@ -74,7 +74,7 @@ export async function ingestOrderWebhook(
       shopifyOrderGid:
         input.payload.admin_graphql_api_id ?? `gid://shopify/Order/${shopifyOrderId}`,
       shopifyOrderName: input.payload.name ?? null,
-      idempotencyKey: input.webhookId,
+      idempotencyKey: orderIdempotencyKey(input.shop, shopifyOrderId),
       reason: "webhook",
       requestId: input.requestId,
     },

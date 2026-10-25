@@ -3,6 +3,8 @@ import { Pool } from "pg";
 import * as schema from "./schema/index.ts";
 
 export type Database = ReturnType<typeof createDb>["db"];
+/** A connection or an open transaction: functions taking it can join the caller's transaction. */
+export type Executor = Database | Parameters<Parameters<Database["transaction"]>[0]>[0];
 
 export function createDb(connectionString: string, max = 10) {
   const pool = new Pool({ connectionString, max });

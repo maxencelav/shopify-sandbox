@@ -3,7 +3,7 @@ import type { PgBoss } from "pg-boss";
 import type { Database } from "@sync/db";
 import { ordersSummary } from "@sync/db/schema";
 import { logger } from "../lib/logger.ts";
-import { QUEUES, type ReconcileJob } from "../queue.ts";
+import { QUEUES, orderIdempotencyKey, type ReconcileJob } from "../queue.ts";
 import type { AdminClient } from "../lib/shopify-admin.ts";
 
 export type ReconcileDeps = { db: Database; boss: PgBoss; admin: AdminClient };
@@ -65,7 +65,7 @@ export async function reconcileOrders(
         shop: job.shop,
         shopifyOrderId: id,
         shopifyOrderName: order.name,
-        idempotencyKey: `reconcile:${job.shop}:${id}`,
+        idempotencyKey: orderIdempotencyKey(job.shop, id),
         status: "pending",
       })
       .onConflictDoNothing({ target: [ordersSummary.shop, ordersSummary.shopifyOrderId] });
@@ -75,7 +75,7 @@ export async function reconcileOrders(
       shopifyOrderId: id,
       shopifyOrderGid: order.id,
       shopifyOrderName: order.name,
-      idempotencyKey: `reconcile:${job.shop}:${id}`,
+      idempotencyKey: orderIdempotencyKey(job.shop, id),
       reason: "reconcile",
       requestId: `reconcile-${id}`,
     });

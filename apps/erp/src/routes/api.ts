@@ -2,7 +2,7 @@ import { Hono } from "hono";
 import { erpWebhookDeliveries } from "@sync/db/schema";
 import { applyChaos, readChaos } from "../lib/chaos.ts";
 import { badRequest, unprocessable } from "../lib/errors.ts";
-import { findReplay, hashRequest, rememberResponse } from "../lib/idempotency.ts";
+import { hashRequest, runIdempotent } from "../lib/idempotency.ts";
 import { logger } from "../lib/logger.ts";
 import type { AppBindings } from "../lib/middleware.ts";
 import { cancelOrder, createOrder, getOrder, listOrders, listStock, shipOrder } from "../lib/orders.ts";
@@ -34,19 +34,18 @@ export function apiRoutes(env: Env) {
       throw unprocessable("Invalid order", parsed.error.issues);
     }
 
-    const requestHash = hashRequest(parsed.data);
-    const replay = await findReplay(db, key, requestHash);
-    if (replay) {
-      c.header("Idempotency-Replayed", "true");
-      c.set("outcome", "replayed");
-      return c.json(replay.body as object, 200);
-    }
-
     const chaos = await applyChaos(await readChaos(db));
 
-    const order = await createOrder(db, parsed.data);
-    const body = serializeOrder(order, "admin", env.DEMO_PSEUDONYM_SECRET);
-    await rememberResponse(db, key, requestHash, 201, body);
+    const result = await runIdempotent(db, key, hashRequest(parsed.data), async (tx) => {
+      const order = await createOrder(tx, parsed.data);
+      return { status: 201, body: serializeOrder(order, "admin", env.DEMO_PSEUDONYM_SECRET) };
+    });
+    if (result.replayed) {
+      c.header("Idempotency-Replayed", "true");
+      c.set("outcome", "replayed");
+      return c.json(result.body as object, 200);
+    }
+    const order = result.body as { id: string };
 
     if (chaos === "lost_response") {
       c.set("outcome", "lost_response");
@@ -70,7 +69,7 @@ export function apiRoutes(env: Env) {
     }
 
     c.set("outcome", "created");
-    return c.json(body, 201);
+    return c.json(result.body as object, 201);
   });
 
   api.get("/orders", async (c) => {
