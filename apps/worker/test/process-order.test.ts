@@ -197,6 +197,43 @@ describe("processOrder", () => {
     expect(summary?.lastError).toContain("Unknown SKU: UNKNOWN-1");
   });
 
+  it("reads the order from the Admin API when its webhook never arrived", async () => {
+    // What reconciliation enqueues: a tracking row, but no stored webhook.
+    await db.insert(ordersSummary).values({
+      shop: "demo.myshopify.com",
+      shopifyOrderId: "5011",
+      shopifyOrderName: "#5011",
+      idempotencyKey: "reconcile:demo.myshopify.com:5011",
+      status: "pending",
+    });
+    const job: ProcessOrderJob = {
+      shop: "demo.myshopify.com",
+      shopifyOrderId: "5011",
+      shopifyOrderGid: "gid://shopify/Order/5011",
+      shopifyOrderName: "#5011",
+      idempotencyKey: "reconcile:demo.myshopify.com:5011",
+      reason: "reconcile",
+      requestId: "reconcile-5011",
+    };
+    const fetchOrder = vi.fn(async () => ({
+      id: "5011",
+      name: "#5011",
+      currency: "EUR",
+      line_items: [{ id: "1", sku: "SKU-A", title: "SKU-A", quantity: 1, price: "120.00" }],
+    }));
+    const { client } = clientAgainstErp();
+    const { boss } = fakeBoss();
+
+    const outcome = await processOrder(
+      { db, erp: client, boss, admin: { fetchOrder, writeSyncMetafields: async () => {} } as never },
+      job,
+    );
+
+    expect(fetchOrder).toHaveBeenCalledWith("gid://shopify/Order/5011");
+    expect(outcome.result).toBe("synced");
+    expect(await db.select().from(erpOrders)).toHaveLength(1);
+  });
+
   it("does nothing when the order is already synced", async () => {
     const job = await arrangeOrder({
       webhookId: "wh-4",

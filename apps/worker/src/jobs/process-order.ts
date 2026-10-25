@@ -5,7 +5,7 @@ import { ordersSummary, webhookEvents } from "@sync/db/schema";
 import { ErpRequestError, type CreateOrderPayload, type ErpClient } from "../lib/erp-client.ts";
 import { logger } from "../lib/logger.ts";
 import { QUEUES, type ProcessOrderJob } from "../queue.ts";
-import type { AdminClient } from "../lib/shopify-admin.ts";
+import type { AdminClient, OrderWebhookPayload } from "../lib/shopify-admin.ts";
 
 export type ProcessOrderDeps = {
   db: Database;
@@ -47,7 +47,7 @@ export async function processOrder(
     return { result: "already_synced", erpOrderId: summary.externalOrderId };
   }
 
-  const payload = await buildPayload(db, job);
+  const payload = await buildPayload(db, admin, job);
   if (!payload) {
     await markDead(db, job, "payload_not_found");
     await boss.send(QUEUES.processOrderDead, { ...job, reasonCode: "payload_not_found" });
@@ -130,6 +130,7 @@ export async function processOrder(
 
 async function buildPayload(
   db: Database,
+  admin: AdminClient | undefined,
   job: ProcessOrderJob,
 ): Promise<CreateOrderPayload | null> {
   const [event] = await db
@@ -138,7 +139,12 @@ async function buildPayload(
     .where(eq(webhookEvents.shopifyWebhookId, job.idempotencyKey))
     .limit(1);
 
-  const order = (event?.payload ?? null) as ShopifyOrderPayload | null;
+  // No stored webhook: the order was found by reconciliation, read it from
+  // the Admin API instead.
+  const order =
+    (event?.payload as OrderWebhookPayload | undefined) ??
+    (await admin?.fetchOrder(job.shopifyOrderGid)) ??
+    null;
   if (!order) return null;
 
   return {
@@ -182,26 +188,3 @@ async function markDead(db: Database, job: ProcessOrderJob, reason: string) {
     .set({ status: "dead", lastError: reason, updatedAt: new Date() })
     .where(eq(ordersSummary.shopifyOrderId, job.shopifyOrderId));
 }
-
-type ShopifyOrderPayload = {
-  id: number | string;
-  name?: string;
-  email?: string;
-  currency?: string;
-  customer?: { first_name?: string; last_name?: string; email?: string };
-  shipping_address?: {
-    address1?: string;
-    city?: string;
-    zip?: string;
-    country?: string;
-    phone?: string;
-  };
-  line_items?: {
-    id: number | string;
-    sku?: string;
-    title?: string;
-    quantity: number;
-    price: string;
-    properties?: { name: string; value: string }[];
-  }[];
-};

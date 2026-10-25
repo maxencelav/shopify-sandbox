@@ -114,6 +114,23 @@ export function createAdminClient(opts: {
       }
     }`;
 
+  // Customer fields would need read_customers: the name comes from the
+  // shipping address and the email from the order, as allowed by read_orders.
+  const ORDER = `
+    query Order($id: ID!) {
+      order(id: $id) {
+        id name email currencyCode
+        shippingAddress { firstName lastName address1 city zip country phone }
+        lineItems(first: 250) {
+          nodes {
+            id sku title quantity
+            originalUnitPriceSet { shopMoney { amount } }
+            customAttributes { key value }
+          }
+        }
+      }
+    }`;
+
   const PRODUCT_VARIANTS = `
     query ProductVariants($cursor: String) {
       productVariants(first: 250, after: $cursor) {
@@ -159,6 +176,48 @@ export function createAdminClient(opts: {
           userErrors,
         );
       }
+    },
+
+    /**
+     * Reads one order, in the shape of the orders/create webhook payload, so
+     * the worker can sync an order whose webhook never arrived.
+     */
+    async fetchOrder(orderGid: string): Promise<OrderWebhookPayload | null> {
+      const data = await query<{ order: AdminOrder | null }>(ORDER, { id: orderGid });
+      const order = data.order;
+      if (!order) return null;
+      const address = order.shippingAddress;
+      return {
+        id: gidToNumericId(order.id),
+        name: order.name,
+        ...(order.email ? { email: order.email } : {}),
+        currency: order.currencyCode,
+        ...(address
+          ? {
+              customer: {
+                ...(address.firstName ? { first_name: address.firstName } : {}),
+                ...(address.lastName ? { last_name: address.lastName } : {}),
+              },
+              shipping_address: {
+                ...(address.address1 ? { address1: address.address1 } : {}),
+                ...(address.city ? { city: address.city } : {}),
+                ...(address.zip ? { zip: address.zip } : {}),
+                ...(address.country ? { country: address.country } : {}),
+                ...(address.phone ? { phone: address.phone } : {}),
+              },
+            }
+          : {}),
+        line_items: order.lineItems.nodes.map((item) => ({
+          id: gidToNumericId(item.id),
+          sku: item.sku ?? "",
+          title: item.title,
+          quantity: item.quantity,
+          price: item.originalUnitPriceSet.shopMoney.amount,
+          properties: item.customAttributes
+            .filter((a): a is { key: string; value: string } => a.value !== null)
+            .map((a) => ({ name: a.key, value: a.value })),
+        })),
+      };
     },
 
     /** Cursor pagination over recent orders (nightly reconciliation). */
@@ -207,3 +266,57 @@ export type ShopifyVariant = {
 };
 
 export type AdminClient = ReturnType<typeof createAdminClient>;
+
+/** The subset of the orders/create webhook payload the worker reads. */
+export type OrderWebhookPayload = {
+  id: number | string;
+  name?: string;
+  email?: string;
+  currency?: string;
+  customer?: { first_name?: string; last_name?: string; email?: string };
+  shipping_address?: {
+    address1?: string;
+    city?: string;
+    zip?: string;
+    country?: string;
+    phone?: string;
+  };
+  line_items?: {
+    id: number | string;
+    sku?: string;
+    title?: string;
+    quantity: number;
+    price: string;
+    properties?: { name: string; value: string }[];
+  }[];
+};
+
+type AdminOrder = {
+  id: string;
+  name: string;
+  email: string | null;
+  currencyCode: string;
+  shippingAddress: {
+    firstName: string | null;
+    lastName: string | null;
+    address1: string | null;
+    city: string | null;
+    zip: string | null;
+    country: string | null;
+    phone: string | null;
+  } | null;
+  lineItems: {
+    nodes: {
+      id: string;
+      sku: string | null;
+      title: string;
+      quantity: number;
+      originalUnitPriceSet: { shopMoney: { amount: string } };
+      customAttributes: { key: string; value: string | null }[];
+    }[];
+  };
+};
+
+function gidToNumericId(gid: string): string {
+  return gid.slice(gid.lastIndexOf("/") + 1);
+}
